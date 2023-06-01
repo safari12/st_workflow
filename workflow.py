@@ -1,5 +1,6 @@
 from enum import Enum
 import inspect
+import asyncio
 
 
 class Scope(Enum):
@@ -21,11 +22,21 @@ class Workflow:
         self.context['cancel'] = False
 
     def add_step(self, name: str, func: callable, params: list[str] = [], scope = Scope.NORMAL):
-        self.steps[scope.value].append({
-            'name': name,
-            'func': func,
-            'params': params
-        })
+        async def async_wrapper(*args):
+            return await func(*args)
+
+        if asyncio.iscoroutinefunction(func):
+            self.steps[scope.value].append({
+                'name': name,
+                'func': async_wrapper,
+                'params': params
+            })
+        else:
+            self.steps[scope.value].append({
+                'name': name,
+                'func': func,
+                'params': params
+            })
 
     def add_error_step(self, name: str, func: callable, params: list[str] = []):
         self.add_step(
@@ -35,26 +46,32 @@ class Workflow:
             Scope.ERROR
         )
 
-    def run_steps(self, scope: Scope):
+    async def run_steps(self, scope: Scope):
         steps = self.steps[scope.value]
         for step in steps:
             if self.context.get('cancel', False):
                 break
 
-            if 'context' in inspect.signature(step['func']).parameters:
+            func: callable = step['func']
+
+            if 'context' in inspect.signature(func).parameters:
                 args = [self.context]
             else:
                 args = [self.context[arg] for arg in step.get('params', [])]
 
-            result = step['func'](*args)
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args)
+            else:
+                result = func(*args)
+
             self.context[step['name']] = result
 
-    def run(self):
+    async def run(self):
         try:
-            self.run_steps(Scope.NORMAL)
+            await self.run_steps(Scope.NORMAL)
         except Exception as e:
             self.context['error'] = str(e)
-            self.run_steps(Scope.ERROR)
+            await self.run_steps(Scope.ERROR)
 
     def cancel(self):
         self.context['cancel'] = True
