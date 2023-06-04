@@ -9,15 +9,13 @@ class Scope(Enum):
 
 
 class Workflow:
-    deps: dict = {}
     context: dict = {}
     steps = {
         Scope.NORMAL.value: [],
         Scope.ERROR.value: []
     }
 
-    def __init__(self, deps: dict, context: dict = {}) -> None:
-        self.deps = deps
+    def __init__(self, context: dict = {}) -> None:
         self.context = context
         self.context['cancel'] = False
 
@@ -58,6 +56,8 @@ class Workflow:
                 args = [self.context]
             else:
                 args = [self.context[arg] for arg in step.get('params', [])]
+
+            args = args ++ []
 
             if asyncio.iscoroutinefunction(func):
                 result = await func(*args)

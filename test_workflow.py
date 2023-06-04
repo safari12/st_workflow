@@ -60,6 +60,12 @@ class TestWorkflow(unittest.TestCase):
         self.assertIsNotNone(context.get('step_with_context'))
         self.assertEqual(context['step_with_context'], 'step_a_results')
 
+    def test_context_init(self):
+        db = 'test_db'
+        workflow = Workflow({'db': db})
+        context = workflow.context
+        self.assertEqual(context['db'], 'test_db')
+
     # def test_io_simulate(self):
     #     async def main():
     #         self.workflow.add_step('async_step_a', self.async_step_a)
