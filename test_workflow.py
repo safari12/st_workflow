@@ -6,9 +6,11 @@ from workflow import Workflow
 class TestWorkflow(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = Workflow({})
+        print(self.workflow.steps)
+        print(self.workflow.context)
+
 
     async def step_a(self):
-        print("hello step a")
         return 'step_a_results'
 
     def step_b(self, step_a):
@@ -22,6 +24,12 @@ class TestWorkflow(unittest.TestCase):
 
     def step_with_context(self, context):
         return context['step_a']
+
+    def step_on_true(self):
+        return True
+
+    def step_on_false(self):
+        return False
 
     # async def async_step_a(self):
     #     print("async step a begin")
@@ -65,6 +73,22 @@ class TestWorkflow(unittest.TestCase):
         workflow = Workflow({'db': db})
         context = workflow.context
         self.assertEqual(context['db'], 'test_db')
+
+    def test_true_cond_step(self):
+        self.workflow.add_step('step_a', self.step_on_true)
+        self.workflow.add_cond_step('cond_step', self.step_on_true, self.step_on_false)
+        asyncio.run(self.workflow.run())
+        context = self.workflow.context
+        self.assertIsNone(context.get('error'))
+        self.assertTrue(context['cond_step'])
+
+    def test_false_cond_step(self):
+        self.workflow.add_step('step_a', self.step_on_false)
+        self.workflow.add_cond_step('cond_step', self.step_on_true, self.step_on_false)
+        asyncio.run(self.workflow.run())
+        context = self.workflow.context
+        self.assertIsNone(context.get('error'))
+        self.assertFalse(context['cond_step'])
 
     # def test_io_simulate(self):
     #     async def main():

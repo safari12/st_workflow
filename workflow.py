@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Callable
 import inspect
 import asyncio
 
@@ -9,17 +10,15 @@ class Scope(Enum):
 
 
 class Workflow:
-    context: dict = {}
-    steps = {
-        Scope.NORMAL.value: [],
-        Scope.ERROR.value: []
-    }
-
-    def __init__(self, context: dict = {}) -> None:
+    def __init__(self, context: dict) -> None:
         self.context = context
         self.context['cancel'] = False
+        self.steps = {
+            Scope.NORMAL.value: [],
+            Scope.ERROR.value: []
+        }
 
-    def add_step(self, name: str, func: callable, params: list[str] = [], scope = Scope.NORMAL):
+    def add_step(self, name: str, func: Callable, params: list[str] = [], scope = Scope.NORMAL):
         async def async_wrapper(*args):
             return await func(*args)
 
@@ -36,7 +35,7 @@ class Workflow:
                 'params': params
             })
 
-    def add_error_step(self, name: str, func: callable, params: list[str] = []):
+    def add_error_step(self, name: str, func: Callable, params: list[str] = []):
         self.add_step(
             name,
             func,
@@ -44,26 +43,44 @@ class Workflow:
             Scope.ERROR
         )
 
+    def add_cond_step(
+            self,
+            name: str,
+            on_true_step: Callable,
+            on_false_step: Callable,
+            params: list[str] = [],
+            scope = Scope.NORMAL):
+        async def cond_step(*args):
+            prev_result = self.context.get(self.steps[scope.value][-2]['name']) if self.steps[scope.value] else None
+            step_func = on_true_step if prev_result else on_false_step
+            return await self._run_step(step_func, *args)
+        self.add_step(
+            name,
+            cond_step,
+            params,
+            scope
+        )
+
+    async def _run_step(self, func: Callable, *args):
+        if asyncio.iscoroutinefunction(func):
+            return await func(*args)
+        else:
+            return func(*args)
+
     async def run_steps(self, scope: Scope):
         steps = self.steps[scope.value]
         for step in steps:
             if self.context.get('cancel', False):
                 break
 
-            func: callable = step['func']
+            func: Callable = step['func']
 
             if 'context' in inspect.signature(func).parameters:
                 args = [self.context]
             else:
                 args = [self.context[arg] for arg in step.get('params', [])]
 
-            args = args ++ []
-
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args)
-            else:
-                result = func(*args)
-
+            result = await self._run_step(func, *args)
             self.context[step['name']] = result
 
     async def run(self):
