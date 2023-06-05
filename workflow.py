@@ -25,28 +25,16 @@ class Workflow:
             Scope.ERROR.value: []
         }
 
-    def add_step(self, name: str, func: Callable, params: list[str] = [], scope=Scope.NORMAL):
-        async def async_wrapper(*args):
-            return await func(*args)
+    def add_step(self, name: str, func: Callable, scope=Scope.NORMAL):
+        self.steps[scope.value].append({
+            'name': name,
+            'func': func,
+        })
 
-        if asyncio.iscoroutinefunction(func):
-            self.steps[scope.value].append({
-                'name': name,
-                'func': async_wrapper,
-                'params': params
-            })
-        else:
-            self.steps[scope.value].append({
-                'name': name,
-                'func': func,
-                'params': params
-            })
-
-    def add_error_step(self, name: str, func: Callable, params: list[str] = []):
+    def add_error_step(self, name: str, func: Callable):
         self.add_step(
             name,
             func,
-            params,
             Scope.ERROR
         )
 
@@ -55,17 +43,16 @@ class Workflow:
             name: str,
             on_true_step: Callable,
             on_false_step: Callable,
-            params: list[str] = [],
             scope=Scope.NORMAL):
-        async def cond_step(*args):
+        async def cond_step():
             prev_result = self.context.get(
                 self.steps[scope.value][-2]['name']) if self.steps[scope.value] else None
             step_func = on_true_step if prev_result else on_false_step
+            args = self._get_step_args(step_func)
             return await self._run_step(step_func, *args)
         self.add_step(
             name,
             cond_step,
-            params,
             scope
         )
 
@@ -74,14 +61,14 @@ class Workflow:
             name: str,
             steps: list[Callable],
             execution_mode=ExecutionMode.THREAD,
-            params: list[str] = [],
             scope=Scope.NORMAL):
-        async def parallel_step(*args):
+        async def parallel_step():
             tasks = []
             executor = ThreadPoolExecutor(
             ) if execution_mode == ExecutionMode.THREAD else ProcessPoolExecutor
 
             for func in steps:
+                args = self._get_step_args(func)
                 if asyncio.iscoroutinefunction(func):
                     task = asyncio.ensure_future(func(*args))
                 else:
@@ -95,7 +82,6 @@ class Workflow:
         self.add_step(
             name,
             parallel_step,
-            params,
             scope
         )
 
@@ -106,8 +92,7 @@ class Workflow:
                 break
 
             func = step['func']
-            params = step.get('params', [])
-            args = self._get_step_args(func, params)
+            args = self._get_step_args(func)
             result = await self._run_step(func, *args)
             self.context[step['name']] = result
 
@@ -121,11 +106,12 @@ class Workflow:
     def cancel(self):
         self.context['cancel'] = True
 
-    def _get_step_args(self, func: Callable, params: list[str]):
-        if 'context' in inspect.signature(func).parameters:
+    def _get_step_args(self, func: Callable):
+        func_args = inspect.signature(func).parameters
+        if 'context' in func_args:
             return [self.context]
         else:
-            return [self.context[arg] for arg in params]
+            return [self.context[arg] for arg in func_args]
 
     async def _run_step(self, func: Callable, *args):
         if asyncio.iscoroutinefunction(func):
