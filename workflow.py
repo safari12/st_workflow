@@ -65,7 +65,7 @@ class Workflow:
         async def parallel_step():
             tasks = []
             executor = ThreadPoolExecutor(
-            ) if execution_mode == ExecutionMode.THREAD else ProcessPoolExecutor
+            ) if execution_mode == ExecutionMode.THREAD else ProcessPoolExecutor()
 
             for func in steps:
                 args = self._get_step_args(func)
