@@ -102,19 +102,25 @@ class Workflow:
     async def run_steps(self, scope: Scope):
         steps = self.steps[scope.value]
         for step in steps:
-            if self.ctx.get('cancel', False):
-                break
+            try:
+                if self.ctx.get('cancel', False):
+                    break
 
-            func = step['func']
-            args = self._get_step_args(func)
-            result = await self._run_step(func, *args)
-            self.ctx[step['name']] = result
+                func = step['func']
+                args = self._get_step_args(func)
+                result = await self._run_step(func, *args)
+                self.ctx[step['name']] = result
+            except Exception as e:
+                self.ctx[f'{scope.value}_error'] = {
+                    'step': step['name'],
+                    'error': e
+                }
+                raise e
 
     async def run(self):
         try:
             await self.run_steps(Scope.NORMAL)
-        except Exception as e:
-            self.ctx['error'] = str(e)
+        except Exception:
             await self.run_steps(Scope.ERROR)
         finally:
             await self.run_steps(Scope.EXIT)

@@ -2,7 +2,7 @@ import unittest
 import asyncio
 import time
 
-from workflow import Workflow, ExecutionMode
+from workflow import Workflow, ExecutionMode, Scope
 
 
 def step_pickle():
@@ -90,8 +90,11 @@ class TestWorkflow(unittest.TestCase):
         self.workflow.add_error_step('step_a_err', self.step)
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx
-        self.assertIsNotNone(ctx.get('error'))
-        self.assertEqual(ctx['error'], 'error_test')
+        err_key = f'{Scope.NORMAL.value}_error'
+        err = ctx.get(err_key, {})
+        self.assertIsNotNone(err)
+        self.assertEqual(err['step'], 'step_a')
+        self.assertEqual(str(err['error']), 'error_test')
         self.assertEqual(ctx['step_a_err'], expected_result)
 
     def test_ctx_init(self):
