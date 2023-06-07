@@ -17,9 +17,9 @@ class ExecutionMode(Enum):
 
 
 class Workflow:
-    def __init__(self, context: dict) -> None:
-        self.context = context
-        self.context['cancel'] = False
+    def __init__(self, ctx: dict) -> None:
+        self.ctx = ctx
+        self.ctx['cancel'] = False
         self.steps = {
             Scope.NORMAL.value: [],
             Scope.ERROR.value: []
@@ -45,7 +45,7 @@ class Workflow:
             on_false_step: Callable,
             scope=Scope.NORMAL):
         async def cond_step():
-            prev_result = self.context.get(
+            prev_result = self.ctx.get(
                 self.steps[scope.value][-2]['name']) if self.steps[scope.value] else None
             step_func = on_true_step if prev_result else on_false_step
             args = self._get_step_args(step_func)
@@ -88,30 +88,30 @@ class Workflow:
     async def run_steps(self, scope: Scope):
         steps = self.steps[scope.value]
         for step in steps:
-            if self.context.get('cancel', False):
+            if self.ctx.get('cancel', False):
                 break
 
             func = step['func']
             args = self._get_step_args(func)
             result = await self._run_step(func, *args)
-            self.context[step['name']] = result
+            self.ctx[step['name']] = result
 
     async def run(self):
         try:
             await self.run_steps(Scope.NORMAL)
         except Exception as e:
-            self.context['error'] = str(e)
+            self.ctx['error'] = str(e)
             await self.run_steps(Scope.ERROR)
 
     def cancel(self):
-        self.context['cancel'] = True
+        self.ctx['cancel'] = True
 
     def _get_step_args(self, func: Callable):
         func_args = inspect.signature(func).parameters
-        if 'context' in func_args:
-            return [self.context]
+        if 'ctx' in func_args:
+            return [self.ctx]
         else:
-            return [self.context[arg] for arg in func_args]
+            return [self.ctx[arg] for arg in func_args]
 
     async def _run_step(self, func: Callable, *args):
         if asyncio.iscoroutinefunction(func):
