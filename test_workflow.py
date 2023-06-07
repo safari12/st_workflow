@@ -42,9 +42,22 @@ class TestWorkflow(unittest.TestCase):
     def step_with_time(self):
         time.sleep(1)
         return 'hello_world'
-    
+
     def step_cancel(self, ctx):
         ctx['cancel'] = True
+
+    def step_with_retries(self, ctx):
+        retries = ctx.get("retries", 1)
+        if retries >= 3:
+            return retries
+
+        retries += 1
+        ctx['retries'] = retries
+        raise ValueError()
+
+    async def step_with_timeout(self):
+        await asyncio.sleep(3)
+        return 'hello_world'
 
     def test_steps(self):
         expected_result = self.step()
@@ -110,6 +123,20 @@ class TestWorkflow(unittest.TestCase):
         with self.assertRaises(Exception) as results:
             asyncio.run(self.workflow.run())
         self.assertTrue('error_test' in str(results.exception))
+
+    def test_step_retries(self):
+        self.workflow.add_step('step_a', self.step_with_retries, retries=3)
+        asyncio.run(self.workflow.run())
+        retries = self.workflow.ctx.get('retries')
+        self.assertEqual(retries, 3)
+
+    def test_step_with_timeout(self):
+        self.workflow.add_step('step_a', self.step_with_timeout, timeout=1)
+        asyncio.run(self.workflow.run())
+        err_key = f'{Scope.NORMAL.value}_error'
+        err = self.workflow.ctx.get(err_key, None)
+        self.assertIsNotNone(err)
+        self.assertIsInstance(err['error'], TimeoutError)
 
     def test_ctx_init(self):
         db = 'test_db'
@@ -195,9 +222,10 @@ class TestWorkflow(unittest.TestCase):
             sub_workflow.add_step('step_a', self.step)
             await sub_workflow.run()
             return sub_workflow.ctx
-        
+
         self.workflow.add_step('step_a', self.step_return_true)
-        self.workflow.add_cond_step('sub_workflow', run_sub_workflow, self.step_return_false)
+        self.workflow.add_cond_step(
+            'sub_workflow', run_sub_workflow, self.step_return_false)
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx.get('sub_workflow', {})
         self.assertIsNone(ctx.get('error'))
