@@ -9,6 +9,7 @@ import asyncio
 class Scope(Enum):
     NORMAL = 'normal'
     ERROR = 'error'
+    EXIT = 'exit'
 
 
 class ExecutionMode(Enum):
@@ -22,7 +23,8 @@ class Workflow:
         self.ctx['cancel'] = False
         self.steps = {
             Scope.NORMAL.value: [],
-            Scope.ERROR.value: []
+            Scope.ERROR.value: [],
+            Scope.EXIT.value: []
         }
 
     def add_step(self, name: str, func: Callable, scope=Scope.NORMAL):
@@ -36,6 +38,13 @@ class Workflow:
             name,
             func,
             Scope.ERROR
+        )
+
+    def add_exit_step(self, name: str, func: Callable):
+        self.add_step(
+            name,
+            func,
+            Scope.EXIT
         )
 
     def add_cond_step(
@@ -102,6 +111,8 @@ class Workflow:
         except Exception as e:
             self.ctx['error'] = str(e)
             await self.run_steps(Scope.ERROR)
+        finally:
+            await self.run_steps(Scope.EXIT)
 
     def cancel(self):
         self.ctx['cancel'] = True

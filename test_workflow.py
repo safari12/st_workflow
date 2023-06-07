@@ -186,6 +186,20 @@ class TestWorkflow(unittest.TestCase):
         self.assertIsNone(ctx.get('error'))
         self.assertEqual(ctx.get('step_a'), self.step())
 
+    def test_exit_steps(self):
+        self.workflow.add_step('step_a', self.step)
+        self.workflow.add_exit_step('step_b', self.step)
+        asyncio.run(self.workflow.run())
+        ctx = self.workflow.ctx
+        self.assertEqual(ctx.get('step_b'), self.step())
+
+    def test_exit_steps_with_err(self):
+        self.workflow.add_step('step_a', self.step_raise_err)
+        self.workflow.add_exit_step('step_b', self.step)
+        asyncio.run(self.workflow.run())
+        ctx = self.workflow.ctx
+        self.assertEqual(ctx.get('step_b'), self.step())
+
         # def test_io_simulate(self):
         #     async def main():
         #         self.workflow.add_step('async_step_a', self.async_step_a)
