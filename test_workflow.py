@@ -97,6 +97,20 @@ class TestWorkflow(unittest.TestCase):
         self.assertEqual(str(err['error']), 'error_test')
         self.assertEqual(ctx['step_a_err'], expected_result)
 
+    def test_err_raise_in_error_steps(self):
+        self.workflow.add_step('step_a', self.step_raise_err)
+        self.workflow.add_error_step('step_b', self.step_raise_err)
+        with self.assertRaises(Exception) as results:
+            asyncio.run(self.workflow.run())
+        self.assertTrue('error_test' in str(results.exception))
+
+    def test_err_raise_in_exit_steps(self):
+        self.workflow.add_step('step_a', self.step_raise_err)
+        self.workflow.add_exit_step('step_b', self.step_raise_err)
+        with self.assertRaises(Exception) as results:
+            asyncio.run(self.workflow.run())
+        self.assertTrue('error_test' in str(results.exception))
+
     def test_ctx_init(self):
         db = 'test_db'
         workflow = Workflow({'db': db})
