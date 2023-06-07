@@ -21,11 +21,17 @@ class Workflow:
     def __init__(self, ctx: dict) -> None:
         self.ctx = ctx
         self.ctx['cancel'] = False
+        self.thread_executor = ThreadPoolExecutor()
+        self.process_executor = ProcessPoolExecutor()
         self.steps = {
             Scope.NORMAL.value: [],
             Scope.ERROR.value: [],
             Scope.EXIT.value: []
         }
+
+    def __del__(self):
+        self.thread_executor.shutdown()
+        self.process_executor.shutdown()
 
     def add_step(self, name: str, func: Callable, scope=Scope.NORMAL):
         self.steps[scope.value].append({
@@ -73,8 +79,7 @@ class Workflow:
             scope=Scope.NORMAL):
         async def parallel_step():
             tasks = []
-            executor = ThreadPoolExecutor(
-            ) if execution_mode == ExecutionMode.THREAD else ProcessPoolExecutor()
+            executor = self.thread_executor if execution_mode == ExecutionMode.THREAD else self.process_executor
 
             for func in steps:
                 args = self._get_step_args(func)
