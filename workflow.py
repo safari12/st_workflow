@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable
+from typing import Callable, Optional
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import inspect
@@ -33,24 +33,30 @@ class Workflow:
         self.thread_executor.shutdown()
         self.process_executor.shutdown()
 
-    def add_step(self, name: str, func: Callable, scope=Scope.NORMAL):
+    def add_step(self, name: str, func: Callable, scope=Scope.NORMAL, timeout: Optional[int] = None, retries: int = 0):
         self.steps[scope.value].append({
             'name': name,
             'func': func,
+            'timeout': timeout,
+            'retries': retries
         })
 
-    def add_error_step(self, name: str, func: Callable):
+    def add_error_step(self, name: str, func: Callable, timeout: Optional[int] = None, retries: int = 0):
         self.add_step(
             name,
             func,
-            Scope.ERROR
+            Scope.ERROR,
+            timeout,
+            retries
         )
 
-    def add_exit_step(self, name: str, func: Callable):
+    def add_exit_step(self, name: str, func: Callable, timeout: Optional[int] = None, retries: int = 0):
         self.add_step(
             name,
             func,
-            Scope.EXIT
+            Scope.EXIT,
+            timeout,
+            retries
         )
 
     def add_cond_step(
@@ -58,17 +64,24 @@ class Workflow:
             name: str,
             on_true_step: Callable,
             on_false_step: Callable,
-            scope=Scope.NORMAL):
+            scope=Scope.NORMAL,
+            timeout: Optional[int] = None,
+            retries: int = 0):
         async def cond_step():
             prev_result = self.ctx.get(
                 self.steps[scope.value][-2]['name']) if self.steps[scope.value] else None
             step_func = on_true_step if prev_result else on_false_step
-            args = self._get_step_args(step_func)
-            return await self._run_step(step_func, *args)
+            return await self._run_step({
+                'func': step_func,
+                'timeout': timeout,
+                'retries': retries
+            })
         self.add_step(
             name,
             cond_step,
-            scope
+            scope,
+            timeout,
+            retries
         )
 
     def add_parallel_steps(
@@ -76,7 +89,9 @@ class Workflow:
             name: str,
             steps: list[Callable],
             execution_mode=ExecutionMode.THREAD,
-            scope=Scope.NORMAL):
+            scope=Scope.NORMAL,
+            timeout: Optional[int] = None,
+            retries: int = 0):
         async def parallel_step():
             tasks = []
             executor = self.thread_executor if execution_mode == ExecutionMode.THREAD else self.process_executor
@@ -96,7 +111,9 @@ class Workflow:
         self.add_step(
             name,
             parallel_step,
-            scope
+            scope,
+            timeout,
+            retries
         )
 
     async def run_steps(self, scope: Scope):
@@ -106,9 +123,7 @@ class Workflow:
                 if self.ctx.get('cancel', False):
                     break
 
-                func = step['func']
-                args = self._get_step_args(func)
-                result = await self._run_step(func, *args)
+                result = await self._run_step(step)
                 self.ctx[step['name']] = result
             except Exception as e:
                 self.ctx[f'{scope.value}_error'] = {
@@ -135,8 +150,21 @@ class Workflow:
         else:
             return [self.ctx[arg] for arg in func_args]
 
-    async def _run_step(self, func: Callable, *args):
-        if asyncio.iscoroutinefunction(func):
-            return await func(*args)
-        else:
-            return func(*args)
+    async def _run_step(self, step: dict):
+        func = step['func']
+        timeout = step.get('timeout')
+        retries = step.get('retries', 0)
+        args = self._get_step_args(func)
+
+        for i in range(retries + 1):
+            try:
+                if asyncio.iscoroutinefunction(func):
+                    if timeout is not None:
+                        return await asyncio.wait_for(func(*args), timeout=timeout)
+                    else:
+                        return await func(*args)
+                else:
+                    return func(*args)
+            except Exception as e:
+                if i == retries:
+                    raise e
