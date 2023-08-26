@@ -34,12 +34,19 @@ class Workflow:
         self.thread_executor.shutdown()
         self.process_executor.shutdown()
 
-    def add_step(self, name: str, func: Callable, scope=Scope.NORMAL, timeout: Optional[int] = None, retries: int = 0):
+    def add_step(self,
+                 name: str,
+                 func: Callable,
+                 scope=Scope.NORMAL,
+                 timeout: Optional[int] = None,
+                 retries: int = 0,
+                 cont_on_err: bool = False):
         self.steps[scope.value].append({
             'name': name,
             'func': func,
             'timeout': timeout,
-            'retries': retries
+            'retries': retries,
+            'cont_on_err': cont_on_err
         })
 
     def add_error_step(self, name: str, func: Callable, timeout: Optional[int] = None, retries: int = 0):
@@ -131,7 +138,8 @@ class Workflow:
                     'step': step['name'],
                     'error': e
                 }
-                raise e
+                if not step['cont_on_err']:
+                    raise e
 
     async def run(self):
         try:

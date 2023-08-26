@@ -247,6 +247,13 @@ class TestWorkflow(unittest.TestCase):
         ctx = self.workflow.ctx
         self.assertEqual(ctx.get('step_b'), self.step())
 
+    def test_cont_on_err(self):
+        self.workflow.add_step('step_a', self.step_raise_err, cont_on_err=True)
+        self.workflow.add_step('step_b', self.step)
+        asyncio.run(self.workflow.run())
+        ctx = self.workflow.ctx
+        self.assertEqual(ctx.get('step_b'), self.step())
+
         # def test_io_simulate(self):
         #     async def main():
         #         self.workflow.add_step('async_step_a', self.async_step_a)
