@@ -158,9 +158,12 @@ class Workflow:
     async def run(self):
         try:
             await self.run_steps(Scope.NORMAL)
-        except Exception:
+        except Exception as e:
             self.ctx['error'] = True
-            await self.run_steps(Scope.ERROR)
+            if len(self.steps[Scope.ERROR.value]) == 0 and len(self.steps[Scope.EXIT.value]) == 0:
+                raise e
+            else:
+                await self.run_steps(Scope.ERROR)
         finally:
             await self.run_steps(Scope.EXIT)
 

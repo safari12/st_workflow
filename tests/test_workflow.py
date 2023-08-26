@@ -136,13 +136,9 @@ class TestWorkflow(unittest.TestCase):
 
     def test_step_with_timeout(self):
         self.workflow.add_step(self.step_with_timeout, timeout=1)
-        asyncio.run(self.workflow.run())
-        ctx = self.workflow.ctx
-        err_key = f'{Scope.NORMAL.value}_error'
-        err = ctx.get(err_key, {})
-        self.assertIsNotNone(err)
-        self.assertEqual(err['step'], 'step_with_timeout')
-        self.assertIsInstance(err['error'], asyncio.TimeoutError)
+        with self.assertRaises(Exception) as results:
+            asyncio.run(self.workflow.run())
+        self.assertIsInstance(results.exception, asyncio.TimeoutError)
 
     def test_ctx_init(self):
         db = 'test_db'
@@ -257,6 +253,13 @@ class TestWorkflow(unittest.TestCase):
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx
         self.assertEqual(ctx.get('step'), self.step())
+
+    def test_raise_err_no_steps(self):
+        self.workflow.add_step(self.step_raise_err)
+        self.workflow.add_step(self.step)
+        with self.assertRaises(Exception) as results:
+            asyncio.run(self.workflow.run())
+        self.assertTrue('error_test' in str(results.exception))
 
         # def test_io_simulate(self):
         #     async def main():
