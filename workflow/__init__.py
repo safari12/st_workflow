@@ -31,16 +31,22 @@ class Workflow:
         }
 
     def __del__(self):
-        self.thread_executor.shutdown()
-        self.process_executor.shutdown()
+        self.thread_executor.shutdown(wait=True)
+        self.process_executor.shutdown(wait=True)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.thread_executor.shutdown(wait=True)
+        self.process_executor.shutdown(wait=True)
 
     def add_step(self,
-                 name: str,
                  func: Callable,
                  scope=Scope.NORMAL,
+                 name: Optional[str] = None,
                  timeout: Optional[int] = None,
                  retries: int = 0,
                  cont_on_err: bool = False):
+        if name is None:
+            name = func.__name__
         self.steps[scope.value].append({
             'name': name,
             'func': func,
@@ -49,20 +55,28 @@ class Workflow:
             'cont_on_err': cont_on_err
         })
 
-    def add_error_step(self, name: str, func: Callable, timeout: Optional[int] = None, retries: int = 0):
+    def add_error_step(self,
+                       func: Callable,
+                       name: Optional[str] = None,
+                       timeout: Optional[int] = None,
+                       retries: int = 0):
         self.add_step(
-            name,
             func,
             Scope.ERROR,
+            name,
             timeout,
             retries
         )
 
-    def add_exit_step(self, name: str, func: Callable, timeout: Optional[int] = None, retries: int = 0):
+    def add_exit_step(self,
+                      func: Callable,
+                      name: Optional[str] = None,
+                      timeout: Optional[int] = None,
+                      retries: int = 0):
         self.add_step(
-            name,
             func,
             Scope.EXIT,
+            name,
             timeout,
             retries
         )
@@ -85,9 +99,9 @@ class Workflow:
                 'retries': retries
             })
         self.add_step(
-            name,
             cond_step,
             scope,
+            name,
             timeout,
             retries
         )
@@ -117,9 +131,9 @@ class Workflow:
             return await asyncio.gather(*tasks)
 
         self.add_step(
-            name,
             parallel_step,
             scope,
+            name,
             timeout,
             retries
         )
