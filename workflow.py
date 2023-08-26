@@ -21,6 +21,7 @@ class Workflow:
     def __init__(self, ctx: dict) -> None:
         self.ctx = ctx
         self.ctx['cancel'] = False
+        self.ctx['error'] = False
         self.thread_executor = ThreadPoolExecutor()
         self.process_executor = ProcessPoolExecutor()
         self.steps = {
@@ -136,6 +137,7 @@ class Workflow:
         try:
             await self.run_steps(Scope.NORMAL)
         except Exception:
+            self.ctx['error'] = True
             await self.run_steps(Scope.ERROR)
         finally:
             await self.run_steps(Scope.EXIT)
