@@ -22,7 +22,7 @@ The workflow library offers a framework for defining and executing asynchronous 
 ---
 
 ```
-pip install workflow
+pip install st-workflow
 ```
 
 ## Quick Start

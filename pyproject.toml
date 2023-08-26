@@ -1,9 +1,12 @@
 [tool.poetry]
-name = "workflow"
-version = "0.1.0"
+name = "st-workflow"
+version = "0.1.1"
 description = ""
 authors = ["Reza Safari <rsafari.s@gmail.com>"]
 readme = "README.md"
+packages = [
+  { include = "workflow/*.py" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
