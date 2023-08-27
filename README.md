@@ -55,6 +55,85 @@ wf.add_error_step(error_step)
 asyncio.run(wf.run())
 ```
 
+Got it! I'll showcase how to use `asyncio.run` in the example without modifying the library.
+
+# README for Workflow Library (Revised)
+
+## Introduction
+
+The Workflow library provides a framework for defining and executing asynchronous workflows. It simplifies the process of chaining multiple tasks, handling errors, and managing shared context across tasks. The library is especially useful for designing complex workflows with various steps and dependencies.
+
+## Features
+
+- **Asynchronous Execution**: Support for defining and executing tasks asynchronously.
+- **Scopes**: Define steps for normal execution, error handling, and exit scenarios.
+- **Execution Modes**: Execute steps in different modes like threads or processes.
+- **Context Sharing**: A shared context (`ctx`) that can be accessed and modified by all steps in the workflow.
+- **Retry Mechanism**: Optionally retry steps upon failure.
+- **Timeouts**: Set timeout limits for steps.
+- **Parallel Execution**: Supports adding parallel steps for concurrent execution.
+- **Cancellation**: Ability to cancel the entire workflow at any point.
+
+## Installation
+
+[Installation steps or package information will go here]
+
+## Quick Start
+
+Here's a basic example to get started:
+
+```python
+import asyncio
+from your_library_name import Workflow, Scope
+
+# Define your steps
+async def step1(ctx):
+    # Your code here
+    pass
+
+async def error_step(ctx):
+    # Your code here
+    pass
+
+# Create a workflow with a context
+wf = Workflow(ctx={'initial_data': 'data_value'})
+
+# Add steps to the workflow
+wf.add_step(step1)
+wf.add_error_step(error_step)
+
+# Run the workflow using asyncio.run
+asyncio.run(wf.run())
+```
+
+## Detailed Usage
+
+---
+
+### Enums
+
+- `Scope`: Determines the scope of a step. Available values:
+
+  - `NORMAL`: Steps that are executed as part of the main flow.
+  - `ERROR`: Steps that are executed when an error occurs in the main flow.
+  - `EXIT`: Steps that are always executed at the end, irrespective of success or error in the main flow.
+
+- `ExecutionMode`: Determines how the step is executed.
+  - `THREAD`: Executes the step in a thread.
+  - `PROCESS`: Executes the step in a separate process.
+
+### Workflow Class
+
+The main class you'll be interacting with. It provides methods to define, manage, and execute steps.
+
+#### Methods
+
+- `add_step(func, scope, name, timeout, retries, cont_on_err)`: Add a step to the workflow.
+- `add_error_step(func, name, timeout, retries)`: Shortcut to add a step with the ERROR scope.
+- `add_exit_step(func, name, timeout, retries)`: Shortcut to add a step with the EXIT scope.
+- `run()`: Start the execution of the workflow. Use it with `asyncio.run` for synchronous execution.
+- `cancel()`: Cancel the ongoing workflow.
+
 ## Real-World Examples
 
 ---
