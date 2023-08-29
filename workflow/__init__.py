@@ -155,7 +155,8 @@ class Workflow:
                 if not step['cont_on_err']:
                     raise e
 
-    async def run(self):
+    async def run(self, **kwargs):
+        self.ctx.update(kwargs)
         try:
             await self.run_steps(Scope.NORMAL)
         except Exception as e:

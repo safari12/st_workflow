@@ -261,6 +261,12 @@ class TestWorkflow(unittest.TestCase):
             asyncio.run(self.workflow.run())
         self.assertTrue('error_test' in str(results.exception))
 
+    def test_run_with_args(self):
+        self.workflow.add_step(self.step_with_multi_param)
+        asyncio.run(self.workflow.run(step_a='hello', step_b='world'))
+        ctx = self.workflow.ctx
+        self.assertEqual(ctx.get('step_with_multi_param'), ['hello', 'world'])
+
         # def test_io_simulate(self):
         #     async def main():
         #         self.workflow.add_step('async_step_a', self.async_step_a)
