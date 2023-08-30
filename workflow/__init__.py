@@ -30,10 +30,6 @@ class Workflow:
             Scope.EXIT.value: []
         }
 
-    def __del__(self):
-        self.thread_executor.shutdown(wait=True)
-        self.process_executor.shutdown(wait=True)
-
     def __exit__(self, exc_type, exc_value, traceback):
         self.thread_executor.shutdown(wait=True)
         self.process_executor.shutdown(wait=True)
