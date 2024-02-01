@@ -1,12 +1,8 @@
 ## Introduction
 
----
-
 The workflow library offers a framework for defining and executing asynchronous workflows. It simplifies chaining multiple tasks, handling errors, and managing shared context across tasks. This library is especially useful for designing complex workflows with multiple steps and dependencies.
 
 ## Features
-
----
 
 - **Asynchronous Execution**: Define and execute tasks asynchronously.
 - **Scopes**: Steps for normal execution, error handling, and exit scenarios.
@@ -19,15 +15,11 @@ The workflow library offers a framework for defining and executing asynchronous 
 
 ## Installation
 
----
-
 ```
 pip install st-workflow
 ```
 
 ## Quick Start
-
----
 
 Use `asyncio.run` to execute the workflow:
 
@@ -55,60 +47,7 @@ wf.add_error_step(error_step)
 asyncio.run(wf.run())
 ```
 
-Got it! I'll showcase how to use `asyncio.run` in the example without modifying the library.
-
-# README for Workflow Library (Revised)
-
-## Introduction
-
-The Workflow library provides a framework for defining and executing asynchronous workflows. It simplifies the process of chaining multiple tasks, handling errors, and managing shared context across tasks. The library is especially useful for designing complex workflows with various steps and dependencies.
-
-## Features
-
-- **Asynchronous Execution**: Support for defining and executing tasks asynchronously.
-- **Scopes**: Define steps for normal execution, error handling, and exit scenarios.
-- **Execution Modes**: Execute steps in different modes like threads or processes.
-- **Context Sharing**: A shared context (`ctx`) that can be accessed and modified by all steps in the workflow.
-- **Retry Mechanism**: Optionally retry steps upon failure.
-- **Timeouts**: Set timeout limits for steps.
-- **Parallel Execution**: Supports adding parallel steps for concurrent execution.
-- **Cancellation**: Ability to cancel the entire workflow at any point.
-
-## Installation
-
-[Installation steps or package information will go here]
-
-## Quick Start
-
-Here's a basic example to get started:
-
-```python
-import asyncio
-from your_library_name import Workflow, Scope
-
-# Define your steps
-async def step1(ctx):
-    # Your code here
-    pass
-
-async def error_step(ctx):
-    # Your code here
-    pass
-
-# Create a workflow with a context
-wf = Workflow(ctx={'initial_data': 'data_value'})
-
-# Add steps to the workflow
-wf.add_step(step1)
-wf.add_error_step(error_step)
-
-# Run the workflow using asyncio.run
-asyncio.run(wf.run())
-```
-
 ## Detailed Usage
-
----
 
 ### Enums
 
@@ -134,9 +73,113 @@ The main class you'll be interacting with. It provides methods to define, manage
 - `run()`: Start the execution of the workflow. Use it with `asyncio.run` for synchronous execution.
 - `cancel()`: Cancel the ongoing workflow.
 
-## Real-World Examples
+## Complex Example Without Workflow Library
 
----
+```python
+import asyncio
+
+async def validate_order(order_id):
+    # Order validation logic
+    print(f"Validating order {order_id}")
+    return True
+
+async def process_payment(order_id, retries=3):
+    # Payment processing with retries
+    for attempt in range(retries):
+        try:
+            print(f"Processing payment for order {order_id}, attempt {attempt + 1}")
+            return "Payment successful"
+        except Exception as e:
+            if attempt + 1 == retries:
+                raise
+
+async def check_stock(item_id):
+    # Stock checking logic
+    print(f"Checking stock for item {item_id}")
+    return True
+
+async def send_notification(user_id, message):
+    # Notification sending logic
+    print(f"Sending notification to user {user_id}: {message}")
+
+async def main_workflow(order_id, item_id, user_id):
+    try:
+        if not await validate_order(order_id):
+            raise Exception("Order validation failed")
+
+        payment_status = await process_payment(order_id)
+        stock_available, _ = await asyncio.gather(check_stock(item_id), send_notification(user_id, "Order received"))
+
+        if not stock_available:
+            raise Exception("Item out of stock")
+
+        await send_notification(user_id, f"Order processed: {payment_status}")
+    except asyncio.CancelledError:
+        print("Workflow cancelled")
+    except Exception as e:
+        await send_notification(user_id, f"Order processing failed: {e}")
+
+# Run the workflow
+workflow_task = asyncio.create_task(main_workflow("order123", "item456", "user789"))
+# Cancelling the workflow for demonstration (in a real scenario, the cancellation condition would be different)
+asyncio.run(asyncio.sleep(1))
+workflow_task.cancel()
+asyncio.run(workflow_task)
+```
+
+## Complex Example With Workflow Library
+
+```python
+import asyncio
+from your_library_name import Workflow, Scope
+
+async def validate_order(ctx):
+    order_id = ctx["order_id"]
+    print(f"Validating order {order_id}")
+    ctx["order_valid"] = True
+
+async def process_payment(ctx):
+    order_id = ctx["order_id"]
+    print(f"Processing payment for order {order_id}")
+    ctx["payment_status"] = "Payment successful"
+
+async def check_stock(ctx):
+    item_id = ctx["item_id"]
+    print(f"Checking stock for item {item_id}")
+    ctx["stock_available"] = True
+
+async def send_order_received_notification(ctx):
+    user_id = ctx["user_id"]
+    message = "Order received"
+    print(f"Sending notification to user {user_id}: {message}")
+
+async def send_order_processed_notification(ctx):
+    user_id = ctx["user_id"]
+    message = f"Order processed: {ctx['payment_status']}"
+    print(f"Sending notification to user {user_id}: {message}")
+
+async def handle_error(ctx):
+    user_id = ctx["user_id"]
+    error_message = f"Order processing failed: {ctx.get('error_message', 'Unknown Error')}"
+    print(f"Sending notification to user {user_id}: {error_message}")
+
+wf = Workflow(ctx={"order_id": "order123", "item_id": "item456", "user_id": "user789"})
+
+wf.add_step(validate_order)
+wf.add_step(process_payment, retries=3)  # Retries for payment processing
+wf.add_parallel_steps([check_stock, send_order_received_notification], name="stock_and_notification")  # Parallel execution
+wf.add_step(send_order_processed_notification)
+wf.add_error_step(handle_error)
+
+# Run the workflow
+workflow_task = asyncio.create_task(wf.run())
+# Cancelling the workflow for demonstration
+asyncio.run(asyncio.sleep(1))
+wf.cancel()  # Workflow cancellation
+asyncio.run(workflow_task)
+```
+
+## Real-World Examples
 
 ### 1. Web Scraping Workflow
 
