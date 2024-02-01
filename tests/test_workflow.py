@@ -2,7 +2,7 @@ import unittest
 import asyncio
 import time
 
-from workflow import Workflow, ExecutionMode, Scope
+from st_workflow import Workflow, ExecutionMode, Scope
 
 
 def step_pickle():
@@ -44,6 +44,9 @@ class TestWorkflow(unittest.TestCase):
 
     def step_raise_err(self):
         raise ValueError('error_test')
+    
+    def step_raise_err_two(self):
+        raise ValueError('error_test')
 
     def step_with_time(self):
         time.sleep(1)
@@ -51,6 +54,9 @@ class TestWorkflow(unittest.TestCase):
 
     def step_cancel(self, ctx):
         ctx['cancel'] = True
+
+    def step_set_ctx(self, ctx):
+        ctx['step'] = 'hello_world'
 
     def step_with_retries(self, ctx):
         retries = ctx.get("retries", 1)
@@ -266,6 +272,37 @@ class TestWorkflow(unittest.TestCase):
         asyncio.run(self.workflow.run(step_a='hello', step_b='world'))
         ctx = self.workflow.ctx
         self.assertEqual(ctx.get('step_with_multi_param'), ['hello', 'world'])
+
+    def test_error_step_with_step_func(self):
+        self.workflow.add_step(self.step_raise_err)
+        self.workflow.add_error_step(self.step, step_func=self.step_raise_err)
+        asyncio.run(self.workflow.run())
+        self.assertEqual(self.workflow.ctx.get('step'), 'hello_world')
+
+    def test_multiple_error_step_with_func(self):
+        self.workflow.add_step(self.step_raise_err)
+        self.workflow.add_step(self.step_raise_err_two)
+        self.workflow.add_error_step(self.step_a, step_func=self.step_raise_err)
+        self.workflow.add_error_step(self.step_b, step_func=self.step_raise_err_two)
+        asyncio.run(self.workflow.run())
+        self.assertEqual(self.workflow.ctx.get('step_a'), 'hello_world')
+        self.assertIsNone(self.workflow.ctx.get('step_b'))
+
+    def test_multiple_cont_error_step_with_func(self):
+        self.workflow.add_step(self.step_raise_err, cont_on_err=True)
+        self.workflow.add_step(self.step_raise_err_two)
+        self.workflow.add_error_step(self.step_a, step_func=self.step_raise_err)
+        self.workflow.add_error_step(self.step_b, step_func=self.step_raise_err_two)
+        asyncio.run(self.workflow.run())
+        self.assertEqual(self.workflow.ctx.get('step_a'), 'hello_world')
+        self.assertEqual(self.workflow.ctx.get('step_b'), 'hello_world')
+
+    def test_error_step_with_step_func_throw_err(self):
+        self.workflow.add_step(self.step_raise_err)
+        self.workflow.add_error_step(self.step_raise_err_two, step_func=self.step_raise_err)
+        self.workflow.add_error_step(self.step)
+        asyncio.run(self.workflow.run())
+        self.assertEqual(self.workflow.ctx.get('step'), 'hello_world')
 
         # def test_io_simulate(self):
         #     async def main():

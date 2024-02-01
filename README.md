@@ -11,12 +11,13 @@ The workflow library offers a framework for defining and executing asynchronous 
 - **Retry Mechanism**: Retry steps upon failure.
 - **Timeouts**: Set timeout limits.
 - **Parallel Execution**: Concurrent execution of steps.
+- **Advanced Error Handling**: Specify general and step-specific error handlers to manage workflow exceptions gracefully
 - **Cancellation**: Cancel workflows midway.
 
 ## Installation
 
 ```
-pip install st-workflow
+pip install st_workflow
 ```
 
 ## Quick Start
@@ -25,7 +26,7 @@ Use `asyncio.run` to execute the workflow:
 
 ```python
 import asyncio
-from workflow import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 # Define your steps
 async def step1(ctx):
@@ -131,7 +132,7 @@ asyncio.run(workflow_task)
 
 ```python
 import asyncio
-from your_library_name import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 async def validate_order(ctx):
     order_id = ctx["order_id"]
@@ -179,6 +180,56 @@ wf.cancel()  # Workflow cancellation
 asyncio.run(workflow_task)
 ```
 
+## Advanced Error Handling
+
+The library introduces an advanced error handling mechanism that allows for both general and step-specific error handlers. This feature ensures that workflows can gracefully recover from errors, allowing for custom recovery logic depending on the step at which an error occurred.
+
+### Setting Up Error Handlers
+
+#### General Error Handler
+
+A general error handler acts as a catch-all for any unhandled exceptions thrown during the workflow execution. It's useful for logging errors, performing cleanup actions, or sending notifications about the failure.
+
+```python
+async def general_error_handler(ctx):
+    error_info = ctx.get(f'{Scope.NORMAL.value}_error', {})
+    print(f"General Error: {error_info.get('error')} in step {error_info.get('step')}")
+
+wf = Workflow(ctx={})
+wf.add_error_step(general_error_handler)  # Set as general error handler
+```
+
+#### Step-Specific Error Handlers
+
+For more granular control, you can specify error handlers for individual steps. This allows you to tailor the recovery logic for specific operations, such as retrying a failed network request or rolling back a transaction.
+
+```python
+async def process_order(ctx):
+    # Order processing logic...
+    raise Exception("Payment processing failed")
+
+async def process_order_error_handler(ctx):
+    error_info = ctx.get('last_error', {})
+    print(f"Error in process_order: {error_info.get('error')}")
+    # Custom recovery logic...
+
+wf = Workflow(ctx={})
+wf.add_step(process_order)
+wf.add_error_step(process_order_error_handler, step_func=process_order)  # Link to specific step
+```
+
+Note when a specific step error handler executes it will stop the entire workflow, to continue the workflow
+set the `cont_on_err` parameter in the `add_step` function
+
+### Error Handling Logic
+
+When an error occurs:
+
+- If the failing step has a specific error handler defined, that handler is executed.
+- If no specific handler is available, the workflow looks for a general error handler.
+- Error handlers can access the error details and the name of the failing step through `ctx[f'{Scope.NORMAL.value}_error']`, enabling informed recovery actions.
+- The workflow supports a mechanism to continue execution after handling an error, controlled by the `cont_on_err` flag set on each step.
+
 ## Real-World Examples
 
 ### 1. Web Scraping Workflow
@@ -187,7 +238,7 @@ Imagine you want to scrape data from a website, process it, store it in a databa
 
 ```python
 import asyncio
-from workflow import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 async def fetch_data(ctx):
     # Use an HTTP library to fetch data from a website
@@ -228,7 +279,7 @@ Imagine you're working with a large dataset. You need to load it, clean it, tran
 
 ```python
 import asyncio
-from workflow import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 async def load_data(ctx):
     # Load data from a source
@@ -270,7 +321,7 @@ Imagine you're managing a cloud infrastructure. You need to create a virtual mac
 
 ```python
 import asyncio
-from workflow import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 async def create_vm(ctx):
     # Create a virtual machine
@@ -321,7 +372,7 @@ For our example, we'll also incorporate features like retries, timeouts, paralle
 
 ```python
 import asyncio
-from workflow import Workflow, Scope
+from st_workflow import Workflow, Scope
 
 # Steps
 

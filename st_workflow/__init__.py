@@ -30,7 +30,7 @@ class Workflow:
             Scope.EXIT.value: []
         }
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, _exc_type, _exc_value, _traceback):
         self.thread_executor.shutdown(wait=True)
         self.process_executor.shutdown(wait=True)
 
@@ -40,12 +40,14 @@ class Workflow:
                  name: Optional[str] = None,
                  timeout: Optional[int] = None,
                  retries: int = 0,
-                 cont_on_err: bool = False):
+                 cont_on_err: bool = False,
+                 err_step: Optional[dict] = None):
         if name is None:
             name = func.__name__
         self.steps[scope.value].append({
             'name': name,
             'func': func,
+            'err_step': err_step,
             'timeout': timeout,
             'retries': retries,
             'cont_on_err': cont_on_err
@@ -55,14 +57,25 @@ class Workflow:
                        func: Callable,
                        name: Optional[str] = None,
                        timeout: Optional[int] = None,
+                       step_func: Optional[Callable] = None,
                        retries: int = 0):
-        self.add_step(
-            func,
-            Scope.ERROR,
-            name,
-            timeout,
-            retries
-        )
+        if step_func:
+            step_func_name = step_func.__name__
+            step = next(filter(lambda x: x['name'] == step_func_name, self.steps[Scope.NORMAL.value]))
+            step['err_step'] = {
+                'name': func.__name__,
+                'func': func,
+                'timeout': timeout,
+                'retries': retries
+            }
+        else:
+            self.add_step(
+                func,
+                Scope.ERROR,
+                name,
+                timeout,
+                retries
+            )
 
     def add_exit_step(self,
                       func: Callable,
@@ -89,11 +102,13 @@ class Workflow:
             prev_result = self.ctx.get(
                 self.steps[scope.value][-2]['name']) if self.steps[scope.value] else None
             step_func = on_true_step if prev_result else on_false_step
-            return await self._run_step({
+            results = await self._run_step({
                 'func': step_func,
                 'timeout': timeout,
                 'retries': retries
             })
+            if results:
+                return results[1]
         self.add_step(
             cond_step,
             scope,
@@ -141,8 +156,15 @@ class Workflow:
                 if self.ctx.get('cancel', False):
                     break
 
-                result = await self._run_step(step)
-                self.ctx[step['name']] = result
+                results = await self._run_step(step)
+                if results:
+                    step_name = results[0]
+                    result = results[1]
+                    self.ctx[step_name] = result
+                    err_step = step.get('err_step') or {}
+                    err_step_name = err_step.get('name')
+                    if step_name == err_step_name and not step.get('cont_on_err'):
+                        break
             except Exception as e:
                 self.ctx[f'{scope.value}_error'] = {
                     'step': step['name'],
@@ -175,20 +197,26 @@ class Workflow:
             return [self.ctx[arg] for arg in func_args]
 
     async def _run_step(self, step: dict):
+        name = step.get('name')
         func = step['func']
         timeout = step.get('timeout')
         retries = step.get('retries', 0)
+        err_step = step.get('err_step')
         args = self._get_step_args(func)
 
         for i in range(retries + 1):
             try:
                 if asyncio.iscoroutinefunction(func):
                     if timeout is not None:
-                        return await asyncio.wait_for(func(*args), timeout=timeout)
+                        result = await asyncio.wait_for(func(*args), timeout=timeout)
+                        return (name, result)
                     else:
-                        return await func(*args)
+                        result = await func(*args)
+                        return (name, result)
                 else:
-                    return func(*args)
+                    return (name, func(*args))
             except Exception as e:
+                if err_step:
+                    return await self._run_step(err_step)
                 if i == retries:
                     raise e

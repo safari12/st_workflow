@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "st-workflow"
-version = "0.1.7"
+name = "st_workflow"
+version = "0.1.8"
 description = "Library for creating workflows in Python"
 authors = ["Reza Safari <rsafari.s@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/safari12/st-workflow"
 packages = [
-  { include = "workflow/*.py" }
+  { include = "st_workflow/*.py" }
 ]
 
 [tool.poetry.dependencies]
