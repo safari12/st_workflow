@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "st_workflow"
-version = "0.1.9"
+version = "0.2.0"
 description = "Library for creating complex workflows in Python"
 authors = ["Reza Safari <rsafari.s@gmail.com>"]
 license = "MIT"
