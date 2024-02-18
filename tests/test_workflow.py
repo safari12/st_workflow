@@ -18,7 +18,7 @@ class TestWorkflow(unittest.TestCase):
         return "hello_world"
 
     def step_a(self):
-        return "hello_world"
+        return "hello_world b"
 
     def step_b(self):
         return "hello_world"
@@ -72,14 +72,13 @@ class TestWorkflow(unittest.TestCase):
         return "hello_world"
 
     def test_steps(self):
-        expected_result = self.step()
         self.workflow.add_step(self.step_a)
         self.workflow.add_step(self.step_b)
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx
         self.assertFalse(ctx["error"])
-        self.assertEqual(ctx["step_a"], expected_result)
-        self.assertEqual(ctx["step_b"], expected_result)
+        self.assertEqual(ctx["step_a"], self.step_a())
+        self.assertEqual(ctx["step_b"], self.step_b())
 
     def test_steps_with_ctx(self):
         self.workflow.add_step(self.step_with_ctx)
@@ -98,7 +97,7 @@ class TestWorkflow(unittest.TestCase):
         self.assertEqual(ctx["step_with_param"], expected_param)
 
     def test_steps_with_multi_param(self):
-        expected_result = [self.step(), self.step()]
+        expected_result = [self.step_a(), self.step_b()]
         self.workflow.add_step(self.step_a)
         self.workflow.add_step(self.step_b)
         self.workflow.add_step(self.step_with_multi_param)
@@ -182,7 +181,7 @@ class TestWorkflow(unittest.TestCase):
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx
         self.assertFalse(ctx["error"])
-        self.assertEqual(ctx["step_cond"], [self.step(), self.step()])
+        self.assertEqual(ctx["step_cond"], [self.step_a(), self.step_b()])
 
     def test_parallel_steps(self):
         steps = [self.step_with_time] * 10
@@ -215,7 +214,7 @@ class TestWorkflow(unittest.TestCase):
         ctx = self.workflow.ctx
         self.assertFalse(ctx.get("error"))
         self.assertIsNone(ctx.get("step"))
-        self.assertEqual(ctx["step_b"], self.step())
+        self.assertEqual(ctx["step_b"], self.step_b())
 
     def test_sub_workflow_breaker(self):
         async def run_sub_workflow():
@@ -231,14 +230,14 @@ class TestWorkflow(unittest.TestCase):
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx.get("sub_workflow", {})
         self.assertFalse(ctx.get("error"))
-        self.assertEqual(ctx.get("step_a"), self.step())
+        self.assertEqual(ctx.get("step_a"), self.step_a())
 
     def test_exit_steps(self):
         self.workflow.add_step(self.step_a)
         self.workflow.add_exit_step(self.step_b)
         asyncio.run(self.workflow.run())
         ctx = self.workflow.ctx
-        self.assertEqual(ctx.get("step_b"), self.step())
+        self.assertEqual(ctx.get("step_b"), self.step_b())
 
     def test_exit_steps_with_err(self):
         self.workflow.add_step(self.step_raise_err)
@@ -279,7 +278,7 @@ class TestWorkflow(unittest.TestCase):
         self.workflow.add_error_step(self.step_a, step_func=self.step_raise_err)
         self.workflow.add_error_step(self.step_b, step_func=self.step_raise_err_two)
         asyncio.run(self.workflow.run())
-        self.assertEqual(self.workflow.ctx.get("step_a"), "hello_world")
+        self.assertEqual(self.workflow.ctx.get("step_a"), self.step_a())
         self.assertIsNone(self.workflow.ctx.get("step_b"))
 
     def test_multiple_cont_error_step_with_func(self):
@@ -288,8 +287,8 @@ class TestWorkflow(unittest.TestCase):
         self.workflow.add_error_step(self.step_a, step_func=self.step_raise_err)
         self.workflow.add_error_step(self.step_b, step_func=self.step_raise_err_two)
         asyncio.run(self.workflow.run())
-        self.assertEqual(self.workflow.ctx.get("step_a"), "hello_world")
-        self.assertEqual(self.workflow.ctx.get("step_b"), "hello_world")
+        self.assertEqual(self.workflow.ctx.get("step_a"), self.step_a())
+        self.assertEqual(self.workflow.ctx.get("step_b"), self.step_b())
 
     def test_error_step_with_step_func_throw_err(self):
         self.workflow.add_step(self.step_raise_err)
@@ -298,7 +297,27 @@ class TestWorkflow(unittest.TestCase):
         )
         self.workflow.add_error_step(self.step)
         asyncio.run(self.workflow.run())
-        self.assertEqual(self.workflow.ctx.get("step"), "hello_world")
+        self.assertEqual(self.workflow.ctx.get("step"), self.step())
+
+    def test_true_cond_multi_steps(self):
+        self.workflow.add_step(self.step_return_true)
+        self.workflow.add_cond_step(
+            "cond_step", [self.step_a, self.step_b], self.step_return_false
+        )
+        asyncio.run(self.workflow.run())
+        results = self.workflow.ctx["cond_step"]
+        self.assertEqual(results[0], self.step_a())
+        self.assertEqual(results[1], self.step_b())
+
+    def test_false_cond_multi_steps(self):
+        self.workflow.add_step(self.step_return_false)
+        self.workflow.add_cond_step(
+            "cond_step", self.step_return_false, [self.step_a, self.step_b]
+        )
+        asyncio.run(self.workflow.run())
+        results = self.workflow.ctx["cond_step"]
+        self.assertEqual(results[0], self.step_a())
+        self.assertEqual(results[1], self.step_b())
 
         # def test_io_simulate(self):
         #     async def main():

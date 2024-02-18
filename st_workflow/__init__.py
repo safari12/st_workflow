@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import inspect
@@ -94,8 +94,8 @@ class Workflow:
     def add_cond_step(
         self,
         name: str,
-        on_true_step: Callable,
-        on_false_step: Callable,
+        on_true_steps: Callable | List[Callable],
+        on_false_steps: Callable | List[Callable],
         scope=Scope.NORMAL,
         timeout: Optional[int] = None,
         retries: int = 0,
@@ -114,12 +114,26 @@ class Workflow:
                 if self.steps[scope.value]
                 else None
             )
-            step_func = on_true_step if prev_result else on_false_step
-            results = await self._run_step(
-                {"func": step_func, "timeout": timeout, "retries": retries}
-            )
-            if results:
-                return results[1]
+
+            next_steps = on_true_steps if prev_result else on_false_steps
+
+            if not isinstance(next_steps, List):
+                next_steps = [next_steps]
+
+            results = []
+
+            for step in next_steps:
+                result = await self._run_step(
+                    {"func": step, "timeout": timeout, "retries": retries}
+                )
+
+                if result:
+                    results.append(result[1])
+
+            if len(results) <= 1:
+                return results[0]
+
+            return results
 
         self.add_step(cond_step, scope, name, timeout, retries)
 
