@@ -130,10 +130,7 @@ class Workflow:
                 if result:
                     results.append(result[1])
 
-            if len(results) <= 1:
-                return results[0]
-
-            return results
+            return results[-1]
 
         self.add_step(cond_step, scope, name, timeout, retries)
 

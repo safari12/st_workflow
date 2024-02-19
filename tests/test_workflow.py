@@ -305,9 +305,8 @@ class TestWorkflow(unittest.TestCase):
             "cond_step", [self.step_a, self.step_b], self.step_return_false
         )
         asyncio.run(self.workflow.run())
-        results = self.workflow.ctx["cond_step"]
-        self.assertEqual(results[0], self.step_a())
-        self.assertEqual(results[1], self.step_b())
+        result = self.workflow.ctx["cond_step"]
+        self.assertEqual(result, self.step_b())
 
     def test_false_cond_multi_steps(self):
         self.workflow.add_step(self.step_return_false)
@@ -315,9 +314,8 @@ class TestWorkflow(unittest.TestCase):
             "cond_step", self.step_return_false, [self.step_a, self.step_b]
         )
         asyncio.run(self.workflow.run())
-        results = self.workflow.ctx["cond_step"]
-        self.assertEqual(results[0], self.step_a())
-        self.assertEqual(results[1], self.step_b())
+        result = self.workflow.ctx["cond_step"]
+        self.assertEqual(result, self.step_b())
 
         # def test_io_simulate(self):
         #     async def main():
