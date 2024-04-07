@@ -28,24 +28,41 @@ Use `asyncio.run` to execute the workflow:
 import asyncio
 from st_workflow import Workflow, Scope
 
-# Define your steps
-async def step1(ctx):
-    # Your code here
-    pass
+# Simulate an asynchronous API call
+async def fetch_data(ctx):
+    print("Fetching data...")
+    await asyncio.sleep(1)  # Simulates the API call delay
+    ctx["fetched_data"] = "Data from API"
 
-async def error_step(ctx):
-    # Your code here
-    pass
+# Process the fetched data
+async def process_data(data):
+    print(f"Processing data: {data}")
+    await asyncio.sleep(1)  # Simulate processing delay
+    # Imagine a condition where processing could fail
+    if not data:
+        raise ValueError("No data to process")
+    ctx["processed_data"] = data.upper()
 
-# Create a workflow with a context
-wf = Workflow(ctx={'initial_data': 'data_value'})
+# An example error handling step
+async def handle_error(ctx):
+    error_info = ctx.get(f'{Scope.NORMAL.value}_error', {})
+    print(f"Handling error from step {error_info.get('step')}: {error_info.get('error')}")
 
-# Add steps to the workflow
-wf.add_step(step1)
-wf.add_error_step(error_step)
+# Define the workflow
+async def main():
+    wf = Workflow(ctx={})
+    
+    # Adding steps and an error handler to the workflow
+    wf.add_step(fetch_data, name="data")
+    wf.add_step(process_data)
+    wf.add_error_step(handle_error)
 
-# Run the workflow using asyncio.run
-asyncio.run(wf.run())
+    # Execute the workflow
+    await wf.run()
+
+# Run the workflow
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Detailed Usage
